@@ -29,41 +29,47 @@ __global__ void convolve2D(int* in, int* out, int dataSizeX, int dataSizeY,
 	//ki will traverse the kernel X axis
 	//kj will traverse the kernel Y axis
 	//printf("gridDim.x*blockDim.x: %d\n",gridDim.x*blockDim.x);
+	
 	for(int i=threadId;i<dataSizeX*dataSizeY;i+=gridDim.x*blockDim.x)
 	{
+		printf("current value we are working on: %d, index: %d\n", in[i],i);
+		int currI = i%dataSizeX;
+		int currJ = i/dataSizeX;
+		//printf("current i: %d and current j: %d, current value we are \
+			//working on: %d\n",currI, currJ), in[currI+currJ*dataSizeX];
+		printf("currI+currJ*dataSizeX: %d\n", currI+currJ*dataSizeX);
 		//printf("test i: %d, im thread number %d\n",i,threadId);
 		sum=0;
 		for(int kj=0;kj<kernelSizeY;kj++){
 			
 			mm = kernelSizeY - 1 - kj;
-			printf("current i: %d and current j: %d\n", (i%dataSizeX), i/kernelSizeX);
+			
 			printf("flipped j value for kernel: %d\n",mm);
 			printf("kernel size X is: %d\n",kernelSizeX);
 			for(int ki=0;ki<kernelSizeX;ki++){
 				nn = kernelSizeX - 1 - ki;
 				printf("flipped x value for kernel: %d\n",nn);
-				printf("current j: %d\n",i/kernelSizeX);
+				printf("current j: %d\n",i/dataSizeX);
 				
-				ii = (i%dataSizeX) + (ki-kernelSizeX/2);
+				ii = (i%dataSizeX) + ki-kernelSizeX/2;
 				printf("ii = %d\n",ii);
 				//ii = threadIdx.x+(kj-kernelSizeX/2);
-				
-				jj = i/kernelSizeX+(kj-kernelSizeY/2);
+				jj = i/dataSizeX+(kj-kernelSizeY/2);
 				
 				printf("jj = %d\n",jj);
 				printf("ii+jj*dataSizeX: %d\n",ii+jj*dataSizeX);
 				//we will ignore those ii and jj that are out of bounds
 				if(ii>=0 && ii < dataSizeX && jj>=0 && jj < dataSizeY){
-					printf("will add %d to sum from values input[%d,%d]*kernel[%d,%d]\n",
-						in[ii+jj*dataSizeX] * kernel[nn+mm*dataSizeX], ii,jj,nn,mm);
-					sum += in[ii+jj*dataSizeX] * kernel[nn+mm*dataSizeX];
+					printf("will add %d to sum from values input[%d,%d]*kernel[%d,%d]: %d*%d \n",
+						in[ii+jj*dataSizeX] * kernel[nn+mm*kernelSizeX], ii,jj,nn,mm,in[ii+jj*dataSizeX],kernel[nn+mm*kernelSizeX]);
+					sum += in[ii+jj*dataSizeX] * kernel[nn+mm*kernelSizeX];
 				}
 					//sum+=1;
 			}
 		}
-		printf("sum is: %d, out index is: %d\n", sum, dataSizeX*(i%dataSizeX)+i/kernelSizeX);
+		printf("sum is: %d, out index is: %d\n", sum, i);
 		printf("/////////////////////////////\n");
-		out[dataSizeX*(i%dataSizeX)+i/kernelSizeX] = sum;
+		out[i] = sum;
 	} 
 }
 
@@ -78,7 +84,7 @@ int main(){
 	
 	StopWatchInterface *timer = NULL;				//variable to hold timer
 	
-	int imageSizeX = 4;
+	int imageSizeX = 3;
 	int imageSizeY = 3;
 	
 	int kernelSizeX = 3;
@@ -102,36 +108,36 @@ int main(){
 	checkCudaErrors( cudaMalloc( (void **)&kernel, kernelSizeX*kernelSizeY*sizeof(int)) );
 	
 	//generating data to use for image.. imageSizeX*imageSizeY "image"
-	//for(int j=0;j<imageSizeY;j++)
-	//	for(int i=0;i<imageSizeY;i++)
-	//		IentryImage[i+j*imageSizeX] = i+j*imageSizeX+1;
+	for(int j=0;j<imageSizeY;j++)
+		for(int i=0;i<imageSizeY;i++)
+			IentryImage[i+j*imageSizeX] = i+j*imageSizeX+1;
 	
-	IentryImage[0] = 1;
-	IentryImage[1] = 5;
-	IentryImage[2] = 2;
-	IentryImage[3] = 3;
-	IentryImage[4] = 8;
-	IentryImage[5] = 7;
-	IentryImage[6] = 3;
-	IentryImage[7] = 6;
-	IentryImage[8] = 3;
-	IentryImage[9] = 3;
-	IentryImage[10] = 9;
-	IentryImage[11] = 1;
+	//IentryImage[0] = 1;
+	//IentryImage[1] = 5;
+	//IentryImage[2] = 2;
+	//IentryImage[3] = 3;
+	//IentryImage[4] = 8;
+	//IentryImage[5] = 7;
+	//IentryImage[6] = 3;
+	//IentryImage[7] = 6;
+	//IentryImage[8] = 3;
+	//IentryImage[9] = 3;
+	//IentryImage[10] = 9;
+	//IentryImage[11] = 1;
 	
 	//will now generate a kernelSizeX*kernelSizeY kernel
 	//for(int j=0;j<kernelSizeX;j++)
 	//	for(int i=0;i<kernelSizeY;i++)
 	//		Ikernel[i+j*kernelSizeX] = i+j*kernelSizeX;
-	Ikernel[0] = 1;
-	Ikernel[1] = 2;
-	Ikernel[2] = 3;
+	Ikernel[0] = -1;
+	Ikernel[1] = -2;
+	Ikernel[2] = -1;
 	Ikernel[3] = 0;
 	Ikernel[4] = 0;
 	Ikernel[5] = 0;
-	Ikernel[6] = 6;
-	Ikernel[7] = 5;
-	Ikernel[8] = 4;
+	Ikernel[6] = 1;
+	Ikernel[7] = 2;
+	Ikernel[8] = 1;
 
 	//copying the kernel to the GPU memory
 	//heckCudaErrors( cudaMemcpyToSymbol(d_Kernel, h_Kernel, KERNEL_SIZE) );
