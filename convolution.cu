@@ -12,14 +12,14 @@
  **/
 
 
-__global__ void convolve2D(int* in, int* out, int dataSizeX, int dataSizeY,
-                    int* kernel, int kernelSizeX, int kernelSizeY)
+__global__ void convolve2D(float* in, float* out, int dataSizeX, int dataSizeY,
+                    float* kernel, int kernelSizeX, int kernelSizeY)
 {	
 	int ii,jj;		//indexes to check boundaries
 	int mm;			//inverse y parameter for traversing the kernel
 	int nn;			//inverse x parameter for traversing the kernel
 	int threadId = blockIdx.x*blockDim.x+threadIdx.x;	//thread ID on the grid
-	int sum = 0;	//variable to hold temporal values
+	float sum = 0;	//variable to hold temporal values
 	printf("Thread id: %d\n",threadId);
 	
 	//i will traverse the image as the image is in a 1D array,
@@ -68,7 +68,7 @@ __global__ void convolve2D(int* in, int* out, int dataSizeX, int dataSizeY,
 			}
 		}
 		printf("sum is: %d, out index is: %d\n", sum, i);
-		printf("/////////////////////////////\n");
+		printf("------------------------------------------------------------------------------------------------------------------------------\n");
 		out[i] = sum;
 	} 
 }
@@ -90,22 +90,22 @@ int main(){
 	int kernelSizeX = 3;
 	int kernelSizeY = 3;
 	
-	int dataSize = sizeof(int)*imageSizeX*imageSizeY;
+	int dataSize = sizeof(float)*imageSizeX*imageSizeY;
 	
-	int* IentryImage = (int*)malloc(dataSize);		//creating an array that will be the input image
+	float* IentryImage = (float*)malloc(dataSize);		//creating an array that will be the input image
 	
-	int* entryImage;								//image usable by cuda
+	float* entryImage;								//image usable by cuda
 	checkCudaErrors( cudaMalloc( (void **)&entryImage, dataSize) );
 	
-	int* IoutputImage = (int*)malloc(dataSize);		//creating an array that will be the output image
+	float* IoutputImage = (float*)malloc(dataSize);		//creating an array that will be the output image
 	
-	int* outputImage;								//image usable by cuda
+	float* outputImage;								//image usable by cuda
 	checkCudaErrors( cudaMalloc( (void **)&outputImage, dataSize) );
 	
-	int* Ikernel = (int*)malloc(dataSize);			//creating an array that will be the kernel
+	float* Ikernel = (float*)malloc(dataSize);			//creating an array that will be the kernel
 	
-	int* kernel;									//kernel usable by cuda
-	checkCudaErrors( cudaMalloc( (void **)&kernel, kernelSizeX*kernelSizeY*sizeof(int)) );
+	float* kernel;									//kernel usable by cuda
+	checkCudaErrors( cudaMalloc( (void **)&kernel, kernelSizeX*kernelSizeY*sizeof(float)) );
 	
 	//generating data to use for image.. imageSizeX*imageSizeY "image"
 	for(int j=0;j<imageSizeY;j++)
@@ -128,7 +128,7 @@ int main(){
 	//will now generate a kernelSizeX*kernelSizeY kernel
 	//for(int j=0;j<kernelSizeX;j++)
 	//	for(int i=0;i<kernelSizeY;i++)
-	//		Ikernel[i+j*kernelSizeX] = i+j*kernelSizeX;
+	//		Ikernel[i+j*kernelSizeX] = i+j*kernelSizeX+1;
 	Ikernel[0] = -1;
 	Ikernel[1] = -2;
 	Ikernel[2] = -1;
@@ -144,7 +144,7 @@ int main(){
 	//copying the data to the CPU
 	checkCudaErrors(cudaMemcpy(entryImage, IentryImage, dataSize, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpy(outputImage, IoutputImage, dataSize, cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(kernel, Ikernel, kernelSizeX*kernelSizeY*sizeof(int), cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpy(kernel, Ikernel, kernelSizeX*kernelSizeY*sizeof(float), cudaMemcpyHostToDevice));
 
 
 	printf("Starting the timer\n");
@@ -164,27 +164,27 @@ int main(){
 	//retrieving values from GPU
 	checkCudaErrors( cudaMemcpy(IentryImage, entryImage, dataSize, cudaMemcpyDeviceToHost) );
 	checkCudaErrors( cudaMemcpy(IoutputImage, outputImage, dataSize, cudaMemcpyDeviceToHost) );
-	checkCudaErrors( cudaMemcpy(Ikernel, kernel, kernelSizeX*kernelSizeY*sizeof(int), cudaMemcpyDeviceToHost) );
+	checkCudaErrors( cudaMemcpy(Ikernel, kernel, kernelSizeX*kernelSizeY*sizeof(float), cudaMemcpyDeviceToHost) );
 	
 	printf("Entry image was:\n");
 	for(int i=0;i<imageSizeX*imageSizeY;i++){
 		if(i==0||i%imageSizeX!=0)
-			printf("%d, ",IentryImage[i]);
-		else printf("\n%d, ", IentryImage[i]);
+			printf("%f, ",IentryImage[i]);
+		else printf("\n%f, ", IentryImage[i]);
 	}
 	printf("\n");
 	printf("Output image is:\n");
 	for(int i=0;i<imageSizeX*imageSizeY;i++){
 		if(i==0||i%imageSizeX!=0)
-			printf("%d, ",IoutputImage[i]);
-		else printf("\n%d, ", IoutputImage[i]);
+			printf("%f, ",IoutputImage[i]);
+		else printf("\n%f, ", IoutputImage[i]);
 	}
 	printf("\n");
 	printf("Kernel was:\n");
 	for(int i=0;i<kernelSizeX*kernelSizeY;i++){
 		if(i==0||i%kernelSizeX!=0)
-			printf("%d, ",Ikernel[i]);
-		else printf("\n%d, ", Ikernel[i]);
+			printf("%f, ",Ikernel[i]);
+		else printf("\n%f, ", Ikernel[i]);
 	}
 	printf("\n");
 	return 0;
