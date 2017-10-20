@@ -1,8 +1,7 @@
 #include <stdio.h>
-#include <helper_timer.h>
-#include <helper_cuda.h>
 #include <getopt.h>
-#include <sys/time.h>
+#include <time.h>
+#include <stdlib.h>
 /**
  * in: Input image
  * out: Output image
@@ -14,13 +13,12 @@
  **/
 
 
-__global__ void convolve2D(float* in, float* out, int dataSizeX, int dataSizeY,
+void convolve2D(float* in, float* out, int dataSizeX, int dataSizeY,
                     float* kernel, int kernelSizeX, int kernelSizeY)
 {	
 	int ii,jj;		//indexes to check boundaries
 	int mm;			//inverse y parameter for traversing the kernel
 	int nn;			//inverse x parameter for traversing the kernel
-	int threadId = blockIdx.x*blockDim.x+threadIdx.x;	//thread ID on the grid
 	float sum = 0;	//variable to hold temporal values
 	
 	//i will traverse the image as the image is in a 1D array,
@@ -29,7 +27,7 @@ __global__ void convolve2D(float* in, float* out, int dataSizeX, int dataSizeY,
 	//j will traverse the image Y axis
 	//ki will traverse the kernel X axis
 	//kj will traverse the kernel Y axis
-	for(int i=threadId;i<dataSizeX*dataSizeY;i+=gridDim.x*blockDim.x)
+	for(int i=0;i<dataSizeX*dataSizeY;i++)
 	{
 		//printf("current value we are working on: %f, index: %d\n", in[i],i);
 		sum=0;
@@ -61,9 +59,6 @@ int main(int argc, char **argv){
   int debugFlag = 0;
   
   
-  //cuda parameters
-  int threads = 0;
-  int blocks = 0;
   int imageSizeX = 0;
   int imageSizeY = 0;
   int kernelSizeX = 0;
@@ -75,8 +70,6 @@ int main(int argc, char **argv){
           /* These options don’t set a flag.
              We distinguish them by their indices. */
           {"debug",     no_argument,       0, 'd'},
-          {"threads",  required_argument, 0, 't'},
-          {"blocks",  required_argument, 0, 'b'},
           {"imageSizeX",    required_argument, 0, 'x'},
           {"imageSizeY",    required_argument, 0, 'y'},
           {"kernelSizeX",    required_argument, 0, 'i'},
@@ -86,7 +79,7 @@ int main(int argc, char **argv){
       /* getopt_long stores the option index here. */
       int option_index = 0;
 
-      c = getopt_long (argc, argv, "dt:b:x:y:i:j:",
+      c = getopt_long (argc, argv, "dx:y:i:j:",
                        long_options, &option_index);
 
       /* Detect the end of the options. */
@@ -108,16 +101,6 @@ int main(int argc, char **argv){
         case 'd':
 		  debugFlag = 1;
           //puts ("option -d\n");
-          break;
-
-        case 't':
-          threads = atoi(optarg);
-          //printf ("option -t with value `%s'\n", optarg);
-          break;
-
-        case 'b':
-          blocks = atoi(optarg);
-          //printf ("option -b with value `%s'\n", optarg);
           break;
 
         case 'x':
@@ -146,9 +129,7 @@ int main(int argc, char **argv){
           abort ();
         }
     }
-    //if no value were given for threads, blocks or image and kernel sizes, give the default value
-    threads = (threads==0?1:threads);
-    blocks = (blocks==0?1:blocks);
+    //if no value were given for image and kernel sizes, give the default value
     imageSizeX = (imageSizeX==0?256:imageSizeX);
 	imageSizeY = (imageSizeY==0?256:imageSizeY);
 	kernelSizeX = (kernelSizeX==0?5:kernelSizeX);
@@ -158,58 +139,34 @@ int main(int argc, char **argv){
 	
 	printf("Starting the algorithm\n");
 	
-	//StopWatchInterface *timer = NULL;				//variable to hold timer
-	
 	
 	int dataSize = sizeof(float)*imageSizeX*imageSizeY;
 	
-	float* IentryImage = (float*)malloc(dataSize);		//creating an array that will be the input image
+	float* entryImage = (float*)malloc(dataSize);		//creating an array that will be the input image
 	
-	float* entryImage;								//image usable by cuda
-	checkCudaErrors( cudaMalloc( (void **)&entryImage, dataSize) );
+	float* outputImage = (float*)malloc(dataSize);		//creating an array that will be the output image
 	
-	float* IoutputImage = (float*)malloc(dataSize);		//creating an array that will be the output image
+	float* kernel = (float*)malloc(dataSize);			//creating an array that will be the kernel
 	
-	float* outputImage;								//image usable by cuda
-	checkCudaErrors( cudaMalloc( (void **)&outputImage, dataSize) );
-	
-	float* Ikernel = (float*)malloc(dataSize);			//creating an array that will be the kernel
-	
-	float* kernel;									//kernel usable by cuda
-	checkCudaErrors( cudaMalloc( (void **)&kernel, kernelSizeX*kernelSizeY*sizeof(float)) );
 	
 	//generating data to use for image.. imageSizeX*imageSizeY "image" populated with its respecting i value
 	for(int j=0;j<imageSizeY;j++)
 		for(int i=0;i<imageSizeX;i++)
-			IentryImage[i+j*imageSizeX] = i+j*imageSizeX+1;
+			entryImage[i+j*imageSizeX] = i+j*imageSizeX+1;
 	
 	
 	//will now generate a kernelSizeX*kernelSizeY kernel populated with 1's
 	for(int j=0;j<kernelSizeY;j++)
 		for(int i=0;i<kernelSizeX;i++)
-			Ikernel[i+j*kernelSizeX] = 1;
-
-	//copying the kernel to the GPU memory
-	//CheckCudaErrors( cudaMemcpyToSymbol(d_Kernel, h_Kernel, KERNEL_SIZE) );
-	//copying the data to the CPU
-	checkCudaErrors(cudaMemcpy(entryImage, IentryImage, dataSize, cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(outputImage, IoutputImage, dataSize, cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpy(kernel, Ikernel, kernelSizeX*kernelSizeY*sizeof(float), cudaMemcpyHostToDevice));
+			kernel[i+j*kernelSizeX] = 1;
 
 
 	printf("Starting the timer\n");
-	//we create the timer
-	//sdkCreateTimer(&timer);
-	//we start the timer
-	//sdkStartTimer(&timer);
 	//we start the timer
 	clock_t start, end;
 	start = clock();
 	//will now start the 2D convolution process now that we have data
-	convolve2D<<<blocks,threads>>>(entryImage,outputImage,imageSizeX,imageSizeY,kernel,kernelSizeX,kernelSizeY);
-	checkCudaErrors( cudaDeviceSynchronize() );
-	//stop the timer
-	//sdkStopTimer(&timer);
+	convolve2D(entryImage,outputImage,imageSizeX,imageSizeY,kernel,kernelSizeX,kernelSizeY);
 	//stop the timer
 	end = clock();
 	//we print how much time did it took to run the convolution
@@ -217,31 +174,26 @@ int main(int argc, char **argv){
 	
 	printf("Elapsed time: %f msec\n",diff);
 	
-	//retrieving values from GPU
-	checkCudaErrors( cudaMemcpy(IentryImage, entryImage, dataSize, cudaMemcpyDeviceToHost) );
-	checkCudaErrors( cudaMemcpy(IoutputImage, outputImage, dataSize, cudaMemcpyDeviceToHost) );
-	checkCudaErrors( cudaMemcpy(Ikernel, kernel, kernelSizeX*kernelSizeY*sizeof(float), cudaMemcpyDeviceToHost) );
-	
 	if(debugFlag){
 		printf("Entry image was:\n");
 		for(int i=0;i<imageSizeX*imageSizeY;i++){
 			if(i==0||i%imageSizeX!=0)
-				printf("%f, ",IentryImage[i]);
-			else printf("\n%f, ", IentryImage[i]);
+				printf("%f, ",entryImage[i]);
+			else printf("\n%f, ", entryImage[i]);
 		}
 		printf("\n");
 		printf("Output image is:\n");
 		for(int i=0;i<imageSizeX*imageSizeY;i++){
 			if(i==0||i%imageSizeX!=0)
-				printf("%f, ",IoutputImage[i]);
-			else printf("\n%f, ", IoutputImage[i]);
+				printf("%f, ",outputImage[i]);
+			else printf("\n%f, ", outputImage[i]);
 		}
 		printf("\n");
 		printf("Kernel was:\n");
 		for(int i=0;i<kernelSizeX*kernelSizeY;i++){
 			if(i==0||i%kernelSizeX!=0)
-				printf("%f, ",Ikernel[i]);
-			else printf("\n%f, ", Ikernel[i]);
+				printf("%f, ",kernel[i]);
+			else printf("\n%f, ", kernel[i]);
 		}
 		printf("\n");
 	}
